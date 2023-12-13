@@ -91,7 +91,7 @@ upstream:
                 # supports cron, ISO duration, "human duration" as used in code
                 frequency: { hours: 12 }
                 # supports ISO duration, "human duration" as used in code
-                timeout: { minutes: 3 }
+                timeout: { minutes: 30 }
 
       signInPage: github
       techdocs:
