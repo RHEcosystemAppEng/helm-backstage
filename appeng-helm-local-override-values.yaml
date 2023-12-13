@@ -30,6 +30,8 @@ global:
         disabled: false
       - package: ./dynamic-plugins/dist/backstage-plugin-catalog-backend-module-github-dynamic
         disabled: false
+      - package: ./dynamic-plugins/dist/backstage-plugin-github-actions
+        disabled: false
   # -- Shorthand for users who do not want to specify a custom HOSTNAME. Used ONLY with the DEFAULT upstream.backstage.appConfig value and with OCP Route enabled.
   clusterRouterBase: apps.backstage-cl1.lue0.p1.openshiftapps.com
   # -- Custom hostname shorthand, overrides `global.clusterRouterBase`, `upstream.ingress.host`, `route.host`, and url values in `upstream.backstage.appConfig`
@@ -76,9 +78,9 @@ upstream:
                 repository: '.*' # Regex
               schedule: # optional; same options as in TaskScheduleDefinition
                 # supports cron, ISO duration, "human duration" as used in code
-                frequency: { minutes: 30 }
+                frequency: { hours: 12 }
                 # supports ISO duration, "human duration" as used in code
-                timeout: { minutes: 3 }
+                timeout: { minutes: 30 }
             fabric8-analytics-provider:
               organization: 'fabric8-analytics' # string
               catalogPath: 'https://github.com/fabric8-analytics/fabric8-analytics-\*/blob/master/catalog-info.yaml' # string
@@ -87,7 +89,7 @@ upstream:
                 repository: '.*' # Regex
               schedule: # optional; same options as in TaskScheduleDefinition
                 # supports cron, ISO duration, "human duration" as used in code
-                frequency: { minutes: 30 }
+                frequency: { hours: 12 }
                 # supports ISO duration, "human duration" as used in code
                 timeout: { minutes: 3 }
 
@@ -156,7 +158,7 @@ upstream:
 #            publishDirectory: 'tmp'
       auth:
         # see https://backstage.io/docs/auth/ to learn about auth providers
-        environment: production
+        environment: development
         providers:
           # Plugin: GitHub
           github:
