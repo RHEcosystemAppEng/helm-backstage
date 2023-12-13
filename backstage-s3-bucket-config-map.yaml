@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backstage-s3-bucket
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: TEST_AWS_ACCESS_KEY_ID
+  AWS_ACCOUNT: TEST_AWS_ACCOUNT
+  AWS_REGION: TEST_AWS_REGION
+  AWS_SECRET_ACCESS_KEY: TEST_AWS_SECRET_ACCESS_KEY
+  S3_BUCKET_NAME: TEST_S3_BUCKET_NAME

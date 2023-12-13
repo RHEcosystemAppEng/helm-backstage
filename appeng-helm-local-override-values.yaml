@@ -1,0 +1,361 @@
+global:
+  dynamic:
+    # -- Array of YAML files listing dynamic plugins to include with those listed in the `plugins` field.
+    # Relative paths are resolved from the working directory of the initContainer that will install the plugins (`/opt/app-root/src`).
+    includes:
+      # -- List of dynamic plugins included inside the `janus-idp/backstage-showcase` container image, some of which are disabled by default.
+      # This file ONLY works with the `janus-idp/backstage-showcase` container image.
+      - 'dynamic-plugins.default.yaml'
+
+    # -- List of dynamic plugins, possibly overriding the plugins listed in `includes` files.
+    # Every item defines the plugin `package` as a [NPM package spec](https://docs.npmjs.com/cli/v10/using-npm/package-spec),
+    # an optional `pluginConfig` with plugin-specific backstage configuration, and an optional `disabled` flag to disable/enable a plugin
+    # listed in `includes` files. It also includes an `integrity` field that is used to verify the plugin package [integrity](https://w3c.github.io/webappsec-subresource-integrity/#integrity-metadata-description).
+    plugins:
+      - package: ./dynamic-plugins/dist/backstage-plugin-github-issues
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-plugin-tech-radar
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-plugin-techdocs
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-plugin-techdocs-backend-dynamic
+        disabled: false
+      - package: ./dynamic-plugins/dist/roadiehq-backstage-plugin-github-pull-requests
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes-backend-dynamic
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-plugin-kubernetes
+        disabled: false
+      - package: ./dynamic-plugins/dist/janus-idp-backstage-plugin-topology
+        disabled: false
+      - package: ./dynamic-plugins/dist/backstage-plugin-catalog-backend-module-github-dynamic
+        disabled: false
+  # -- Shorthand for users who do not want to specify a custom HOSTNAME. Used ONLY with the DEFAULT upstream.backstage.appConfig value and with OCP Route enabled.
+  clusterRouterBase: apps.backstage-cl1.lue0.p1.openshiftapps.com
+  # -- Custom hostname shorthand, overrides `global.clusterRouterBase`, `upstream.ingress.host`, `route.host`, and url values in `upstream.backstage.appConfig`
+  host: ""
+  # -- Enable service authentication within Backstage instance
+  auth:
+    # -- Backend service to service authentication
+    # <br /> Ref: https://backstage.io/docs/auth/service-to-service-auth/
+    backend:
+      # -- Enable backend service to service authentication, unless configured otherwise it generates a secret value
+      enabled: true
+      # -- Instead of generating a secret value, refer to existing secret
+      existingSecret: ""
+      # -- Instead of generating a secret value, use fo;lowing value
+      value: ""
+
+# -- Upstream Backstage [chart configuration](https://github.com/backstage/charts/blob/main/charts/backstage/values.yaml)
+# @default -- Use Openshift compatible settings
+upstream:
+  nameOverride: backstage
+  backstage:
+    image:
+      registry: quay.io
+      repository: janus-idp/backstage-showcase
+      tag: next
+    command: []
+    # FIXME (tumido): USE POSTGRES_PASSWORD and POSTGRES_USER instead of POSTGRES_ADMIN_PASSWORD
+    # This is a hack. In {fedora,rhel}/postgresql images, regular user is forbidden
+    # from creating DBs in runtime. A single DB can be created ahead of time via
+    # POSTGRESQL_DATABASE env variable (in this case via
+    # upstream.postgresql.primary.extraEnvVars value), but this doesn't allow us to
+    # create multiple DBs. Since Backstage requires by default 5 different DBs, we
+    # can't accommodate that properly.
+    appConfig:
+      catalog:
+        providers:
+          github:
+            # the provider ID can be any camelCase string
+            providerId:
+              organization: 'RHEcosystemAppEng' # string
+              catalogPath: 'https://github.com/RHEcosystemAppEng/\*/blob/main/catalog-info.yaml' # string
+              filters:
+                branch: 'main' # string
+                repository: '.*' # Regex
+              schedule: # optional; same options as in TaskScheduleDefinition
+                # supports cron, ISO duration, "human duration" as used in code
+                frequency: { minutes: 30 }
+                # supports ISO duration, "human duration" as used in code
+                timeout: { minutes: 3 }
+            fabric8-analytics-provider:
+              organization: 'fabric8-analytics' # string
+              catalogPath: 'https://github.com/fabric8-analytics/fabric8-analytics-\*/blob/master/catalog-info.yaml' # string
+              filters:
+                branch: 'master' # string
+                repository: '.*' # Regex
+              schedule: # optional; same options as in TaskScheduleDefinition
+                # supports cron, ISO duration, "human duration" as used in code
+                frequency: { minutes: 30 }
+                # supports ISO duration, "human duration" as used in code
+                timeout: { minutes: 3 }
+
+      signInPage: github
+      techdocs:
+        cache:
+          ttl: 3600
+          readTimeout: 1000
+        # techdocs.generator is used to configure how documentation sites are generated using MkDocs.
+        generator:
+          # techdocs.generator.runIn can be either 'docker' or 'local'. This is to determine how to run the generator - whether to
+          # spin up the techdocs-container docker image or to run mkdocs locally (assuming all the dependencies are taken care of).
+          # You want to change this to 'local' if you are running Backstage using your own custom Docker setup and want to avoid running
+          # into Docker in Docker situation. Read more here
+          # https://backstage.io/docs/features/techdocs/getting-started#disable-docker-in-docker-situation-optional
+
+          runIn: 'local'
+
+          mkdocs:
+            # (Optional)  techdocs.generator.omitTechdocsCoreMkdocsPlugin can be used to disable automatic addition of techdocs-core plugin to the mkdocs.yaml files.
+            # Defaults to false, which means that the techdocs-core plugin is always added to the mkdocs file.
+            omitTechdocsCorePlugin: false
+
+            # (Optional and not recommended) Configures the techdocs generator to
+            # attempt to ensure an index.md exists falling back to using <docs-dir>/README.md
+            # or README.md in case a default <docs-dir>/index.md is not provided.
+            # Note that https://www.mkdocs.org/user-guide/configuration/#edit_uri behavior
+            # will be broken in these scenarios.
+            legacyCopyReadmeMdToIndexMd: true
+
+            # (Optional) Configures the default plugins which should be added
+            # automatically to every mkdocs.yaml file. This simplifies the usage as
+            # e.g. styling plugins can be added once for all.
+            # Make sure that the defined plugins are installed locally / in the Docker
+            # image.
+            # By default, only the techdocs-core plugin will be added (except if
+            # omitTechdocsCorePlugin: true).
+            defaultPlugins: [ 'techdocs-core' ]
+
+        # techdocs.builder can be either 'local' or 'external'.
+        # Using the default build strategy, if builder is set to 'local' and you open a TechDocs page,
+        # techdocs-backend will try to generate the docs, publish to storage and show the generated docs afterwards.
+        # This is the "Basic" setup of the TechDocs Architecture.
+        # Using the default build strategy, if builder is set to 'external' (or anything other than 'local'), techdocs-backend
+        # will only fetch the docs and will NOT try to generate and publish.
+        # In this case, we assume that docs are being built by an external process (e.g. in the CI/CD pipeline of the repository).
+        # This is the "Recommended" setup of the architecture.
+        # Note that custom build strategies may alter this behaviour.
+        # Read more about the "Basic" and "Recommended" setups here https://backstage.io/docs/features/techdocs/architecture
+        # Read more about build strategies here: https://backstage.io/docs/features/techdocs/concepts#techdocs-build-strategy
+
+        builder: 'local'
+        publisher:
+          type: 'awsS3'
+          awsS3:
+            bucketName: ${S3_BUCKET_NAME}
+            accountId: ${AWS_ACCOUNT}
+            region: ${AWS_REGION}
+      aws:
+        accounts:
+          - accountId: ${AWS_ACCOUNT}
+            accessKeyId: ${AWS_ACCESS_KEY_ID}
+            secretAccessKey: ${AWS_SECRET_ACCESS_KEY}
+#          local:
+#            # (Optional). Set this to specify where the generated documentation is stored.
+#            publishDirectory: 'tmp'
+      auth:
+        # see https://backstage.io/docs/auth/ to learn about auth providers
+        environment: production
+        providers:
+          # Plugin: GitHub
+          github:
+            development:
+              clientId: ${AUTH_GITHUB_CLIENT_ID}
+              clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}
+            production:
+              clientId: ${AUTH_GITHUB_CLIENT_ID}
+              clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}
+
+      integrations:
+        github:
+          - host: github.com
+            # This is a GitHub App. You can find out how to generate this file, and more information
+            # about setting up the GitHub integration here: https://backstage.io/docs/integrations/github/github-apps
+            token: ${GITHUB_TOKEN}
+      app:
+        # Please update to match host in case you don't want to configure hostname via `global.clusterRouterBase` or `global.host`.
+        baseUrl: 'https://{{- include "janus-idp.hostname" . }}'
+      backend:
+        baseUrl: 'https://{{- include "janus-idp.hostname" . }}'
+        cors:
+          origin: 'https://{{- include "janus-idp.hostname" . }}'
+        database:
+          connection:
+            password: ${POSTGRESQL_ADMIN_PASSWORD}
+            user: postgres
+        auth:
+          keys:
+            - secret: ${BACKEND_SECRET}
+    readinessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: /healthcheck
+        port: 7007
+        scheme: HTTP
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      successThreshold: 2
+      timeoutSeconds: 2
+    livenessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: /healthcheck
+        port: 7007
+        scheme: HTTP
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 2
+    extraEnvVars:
+      - name: BACKEND_SECRET
+        valueFrom:
+          secretKeyRef:
+            key: backend-secret
+            name: '{{ include "janus-idp.backend-secret-name" $ }}'
+      - name: POSTGRESQL_ADMIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            key: postgres-password
+            name: "{{ .Release.Name }}-postgresql"
+    extraEnvVarsSecrets:
+      - backstage-s3-bucket
+      - appeng-backstage-config
+    args:
+      # This additional `app-config`` file is generated by the initContainer below, and contains the merged configuration of installed dynamic plugins.
+      - '--config'
+      - dynamic-plugins-root/app-config.dynamic-plugins.yaml
+    extraVolumeMounts:
+      # The initContainer below will install dynamic plugins in this volume mount.
+      - name: dynamic-plugins-root
+        mountPath: /opt/app-root/src/dynamic-plugins-root
+    extraVolumes:
+      # -- Ephemeral volume that will contain the dynamic plugins installed by the initContainer below at start.
+      - name: dynamic-plugins-root
+        ephemeral:
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  # -- Size of the volume that will contain the dynamic plugins. It should be large enough to contain all the plugins.
+                  storage: 1Gi
+
+      # Volume that will expose the `dynamic-plugins.yaml` file from the `dynamic-plugins` config map.
+      # The `dynamic-plugins` config map is created by the helm chart from the content of the `global.dynamic` field.
+      - name: dynamic-plugins
+        configMap:
+          defaultMode: 420
+          name: dynamic-plugins
+          optional: true
+      # Optional volume that allows exposing the `.npmrc` file (through a `dynamic-plugins-npmrc` secret)
+      # to be used when running `npm pack` during the dynamic plugins installation by the initContainer.
+      - name: dynamic-plugins-npmrc
+        secret:
+          defaultMode: 420
+          optional: true
+          secretName: dynamic-plugins-npmrc
+    initContainers:
+      - name: install-dynamic-plugins
+        # -- Image used by the initContainer to install dynamic plugins into the `dynamic-plugins-root` volume mount.
+        # It could be replaced by a custom image based on this one.
+        # @default -- `quay.io/janus-idp/backstage-showcase:latest`
+        image: '{{ include "backstage.image" . }}'
+        command:
+          - ./install-dynamic-plugins.sh
+          - /dynamic-plugins-root
+        env:
+          - name: NPM_CONFIG_USERCONFIG
+            value: /opt/app-root/src/.npmrc.dynamic-plugins
+        imagePullPolicy: Always
+        volumeMounts:
+          - mountPath: /dynamic-plugins-root
+            name: dynamic-plugins-root
+          - mountPath: /opt/app-root/src/dynamic-plugins.yaml
+            name: dynamic-plugins
+            readOnly: true
+            subPath: dynamic-plugins.yaml
+          - mountPath: /opt/app-root/src/.npmrc.dynamic-plugins
+            name: dynamic-plugins-npmrc
+            readOnly: true
+            subPath: .npmrc
+        workingDir: /opt/app-root/src
+    installDir: /opt/app-root/src
+    podAnnotations:
+      checksum/dynamic-plugins: >-
+        {{- include "common.tplvalues.render" ( dict "value"
+        .Values.global.dynamic "context" $) | sha256sum }}
+  postgresql:
+    enabled: true
+    postgresqlDataDir: /var/lib/pgsql/data/userdata
+    image:
+      registry: quay.io
+      repository: fedora/postgresql-15
+      tag: latest
+    auth:
+      secretKeys:
+        adminPasswordKey: postgres-password
+        userPasswordKey: password
+    primary:
+      securityContext:
+        enabled: false
+      podSecurityContext:
+        enabled: false
+      containerSecurityContext:
+        enabled: false
+      persistence:
+        enabled: true
+        size: 1Gi
+        mountPath: /var/lib/pgsql/data
+      extraEnvVars:
+        - name: POSTGRESQL_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgres-password
+              name: "{{ .Release.Name }}-postgresql"
+  ingress:
+    host: "{{ .Values.global.host }}"
+
+# -- OpenShift Route parameters
+route:
+  # -- Route specific annotations
+  annotations: {}
+
+  # -- Enable the creation of the route resource
+  enabled: true
+
+  # -- Set the host attribute to a custom value. If not set, OpenShift will generate it, please make sure to match your baseUrl
+  host: "{{ .Values.global.host }}"
+
+  # -- Path that the router watches for, to route traffic for to the service.
+  path: "/"
+
+  # -- Wildcard policy if any for the route. Currently only 'Subdomain' or 'None' is allowed.
+  wildcardPolicy: None
+
+  # -- Route TLS parameters
+  # <br /> Ref: https://docs.openshift.com/container-platform/4.9/networking/routes/secured-routes.html
+  tls:
+    # -- Enable TLS configuration for the host defined at `route.host` parameter
+    enabled: true
+
+    # -- Specify TLS termination.
+    termination: "edge"
+
+    # -- Certificate contents
+    certificate: ""
+
+    # -- Key file contents
+    key: ""
+
+    # -- Cert authority certificate contents. Optional
+    caCertificate: ""
+
+    # -- Contents of the ca certificate of the final destination.
+    # <br /> When using reencrypt termination this file should be provided in order to have routers use it for health checks on the secure connection. If this field is not specified, the router may provide its own destination CA and perform hostname validation using the short service name (service.namespace.svc), which allows infrastructure generated certificates to automatically verify.
+    destinationCACertificate: ""
+
+    # --  Indicates the desired behavior for insecure connections to a route.
+    # <br /> While each router may make its own decisions on which ports to expose, this is normally port 80. The only valid values are None, Redirect, or empty for disabled.
+    insecureEdgeTerminationPolicy: "Redirect"
